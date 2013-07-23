@@ -37,8 +37,8 @@ int main( int argc, char** argv)
 	int portId;
 	char portName[20];
 	int sleep_time;
-	int nChars2Send;
-	int arduinoTextLength;
+	int echoLength;
+	int sensorLength;
 	int nTotalRead;
 	
 	if( argc < 5)
@@ -48,11 +48,11 @@ int main( int argc, char** argv)
 		exit(1);
 	} else {
 		portId = atoi( argv[1] );
-		nChars2Send = atoi( argv[2] );
-		sleep_time = atoi( argv[3] );
-		arduinoTextLength = atoi( argv[4] );
+		sleep_time = atoi( argv[2] );
+		echoLength = atoi( argv[3] );		
+		sensorLength = atoi( argv[4] );
 		
-		if( nChars2Send >= MAX_BUFFER_SIZE )
+		if( echoLength >= MAX_BUFFER_SIZE )
 		{
 			fprintf(stderr, "TEST_STRING_LEGNTH too long. Max %d\n", MAX_BUFFER_SIZE);
 			exit(1);
@@ -96,12 +96,13 @@ int main( int argc, char** argv)
 		printf("Timer running at %g hz , div %g\n", (double)(li.QuadPart), ClockFrequency);
 	}
 #endif
-					
+
 	printf("Entering main busy loop, hit Ctrl-C to stop program ...\n");
 	
 	bIdx = 0;
-	out = getTime();
-	START_SYMBOL = '@';
+	nTotalRead = 0;
+	START_SYMBOL = '@';	
+	out = 0;	
 	while(1)
 	{
 #ifdef __linux__
@@ -109,24 +110,25 @@ int main( int argc, char** argv)
 #else				
 		Sleep( 1 );
 #endif
-		nBytes = RS232_PollComport( portId, &(b[bIdx]), nChars2Send);		
+		nBytes = RS232_PollComport( portId, &(b[bIdx]), echoLength);		
 		bIdx += nBytes;
 		nTotalRead += nBytes;
 				
 		//Periodically Send messages
 		now = getTime();
 		if( (now - out) > sleep_time )
-		{					
-			//printf("S ... \n");
-			for(int j=0; j < nChars2Send; j++){
-				RS232_SendByte( portId, START_SYMBOL+j );
-			}					
-			//printf("S2 ... \n");			
+		{								
+			RS232_SendByte( portId, echoLength );
+			RS232_SendByte( portId, sensorLength );						
 			out = getTime();
+			
+			if( (out - now) > 1.0 ){
+				printf("Sending took %g msec\n", out-now );
+			}
 		}
 						
 		//Detect if this response is an echo
-		if( (b[0] == START_SYMBOL+1) && ( bIdx >= nChars2Send ) )
+		if( (b[0] == START_SYMBOL) && ( bIdx >= echoLength ) )
 		{			
 			//printf("R ... \n");
 			in = getTime();
@@ -134,14 +136,14 @@ int main( int argc, char** argv)
 			tDiff[tCnter] =  in - out;
 			
 			// Shift data
-			memcpy( b, &(b[nChars2Send]), bIdx - nChars2Send );
-			bIdx -= nChars2Send;
-		} else if ( bIdx >= nChars2Send ) {
+			memcpy( b, &(b[echoLength]), bIdx - echoLength );
+			bIdx -= echoLength;
+		} else if ( bIdx >= echoLength ) {
 			//printf("Try to detect frame start ...");
 			int j;
 			for( j = 0; j < bIdx; j++ )
 			{
-				if( b[j] == (START_SYMBOL+1) )
+				if( b[j] == (START_SYMBOL) )
 					break;
 			}
 			memcpy( b, &(b[j]), bIdx - j );
@@ -163,10 +165,8 @@ int main( int argc, char** argv)
 				}
 			}
 			double avgDiff =  (double) (totalTime / (double) N);
-			printf("RTT %g , N = %d , Send %d, Sleep %d ms, Recv %d, Recv Total %d\n", avgDiff, N , nChars2Send, sleep_time, arduinoTextLength, nTotalRead);
-			nTotalRead = 0;
-			
-			RS232_SendByte( portId, arduinoTextLength );
+			printf("RTT %g , N = %d , Sleep %d ms, Echo %d, Sensor %d, Recv Total %d\n", avgDiff, N, sleep_time, echoLength, sensorLength, nTotalRead);
+			nTotalRead = 0;				
 		}					
 	}
 	exit(0);

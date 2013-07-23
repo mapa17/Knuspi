@@ -1,6 +1,7 @@
 volatile bool sendMsg = false;
 volatile uint8_t cnt = 0;
 volatile uint8_t sendBufferSize = 3;
+volatile uint8_t nEcho = 5;
 
 volatile uint8_t new_adc_sample=0;
 const uint8_t log2_n_samples = 4;
@@ -28,8 +29,7 @@ void setup_timer1() {
     TCCR1A = 0;
     TCCR1B = 0; // normal mode
 
-//    TCCR1B |= _BV( CS11 ) | _BV( CS10 ); // clock prescaler 64
-    TCCR1B |= _BV( CS10 ) ; // clock prescaler 1
+    TCCR1B |= _BV( CS11 ) | _BV( CS10 ); // clock prescaler 64
 
     TIMSK1 = _BV(TOIE1); // enable interrupt on timer1
     sei();
@@ -73,14 +73,14 @@ void setup_adc() {
 void loop()
 {
     static char d;
-    if ( Serial.available() )
+    if ( Serial.available() >= 2 )
     {
-        d = Serial.read();
-        Serial.write(d + 1);
-        
-        if( d < 30 ){
-          sendBufferSize = d;
-        }
+        nEcho = Serial.read();
+        sendBufferSize = Serial.read();
+
+        for (uint8_t i=0; i < nEcho; i++) {
+          Serial.write('@'+i);
+        }                   
     }
     
     if( sendMsg )
