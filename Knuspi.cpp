@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
-#include <windows.h>
+#ifndef __linux__
+	#include <windows.h>
+#endif
 #include "rs232.h"
 
 double ClockFrequency;
@@ -9,6 +12,13 @@ double ClockFrequency;
 double getTime()
 {
 	double t;
+
+#ifdef __linux__
+	timespec ts;
+	// clock_gettime(CLOCK_MONOTONIC, &ts); // Works on FreeBSD
+	clock_gettime(CLOCK_REALTIME, &ts); // Works on Linux
+	t = ts.tv_sec * 1000.0 + (ts.tv_nsec / 1e6);
+#else
 	LARGE_INTEGER li;
 	
 	if( !QueryPerformanceCounter( &li ) ){
@@ -17,6 +27,7 @@ double getTime()
 		t = li.QuadPart;
 		t = t / ClockFrequency;		
 	}
+#endif
 	return t;
 }
 
@@ -75,6 +86,9 @@ int main( int argc, char** argv)
 	double lastTimeMsgSend;
 	unsigned char START_SYMBOL;
 	
+#ifdef __linux__
+	printf("Linux...");
+#else
 	LARGE_INTEGER li;
 	if(!QueryPerformanceFrequency(&li)){
 		fprintf(stderr, "QueryPerformanceFrequency failed!\n");
@@ -82,6 +96,7 @@ int main( int argc, char** argv)
 		ClockFrequency = double(li.QuadPart)/1000.0; //Scale to ms granularity		
 		printf("Timer running at %g hz , div %g\n", (double)(li.QuadPart), ClockFrequency);
 	}
+#endif
 	
 			
 	//Consume all buffered data - aka flush
@@ -97,8 +112,11 @@ int main( int argc, char** argv)
 	START_SYMBOL = '@';
 	while(1)
 	{
-				
+#ifdef __linux__
+		usleep( 1000 );
+#else				
 		Sleep( 1 );
+#endif
 		nBytes = RS232_PollComport( portId, &(b[bIdx]), nChars2Send);		
 		bIdx += nBytes;
 		nTotalRead += nBytes;
