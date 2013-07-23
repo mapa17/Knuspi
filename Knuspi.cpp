@@ -17,7 +17,7 @@ double getTime()
 	timespec ts;
 	// clock_gettime(CLOCK_MONOTONIC, &ts); // Works on FreeBSD
 	clock_gettime(CLOCK_REALTIME, &ts); // Works on Linux
-	t = ts.tv_sec * 1000.0 + (ts.tv_nsec / 1e6);
+	t = ts.tv_sec * 1000.0 + (ts.tv_nsec / 1000000.0);
 #else
 	LARGE_INTEGER li;
 	
@@ -83,7 +83,6 @@ int main( int argc, char** argv)
 	unsigned char b[MAX_BUFFER_SIZE];	
 	int bIdx;
 	int nBytes;
-	double lastTimeMsgSend;
 	unsigned char START_SYMBOL;
 	
 #ifdef __linux__
@@ -97,18 +96,11 @@ int main( int argc, char** argv)
 		printf("Timer running at %g hz , div %g\n", (double)(li.QuadPart), ClockFrequency);
 	}
 #endif
-	
-			
-	//Consume all buffered data - aka flush
-	do{
-		nBytes = RS232_PollComport( portId, b, 20);
-	} while( nBytes );
-	memset(b, 0, 100);
-	
+					
 	printf("Entering main busy loop, hit Ctrl-C to stop program ...\n");
 	
 	bIdx = 0;
-	lastTimeMsgSend = getTime();
+	out = getTime();
 	START_SYMBOL = '@';
 	while(1)
 	{
@@ -123,7 +115,7 @@ int main( int argc, char** argv)
 				
 		//Periodically Send messages
 		now = getTime();
-		if( (now - lastTimeMsgSend) > sleep_time )
+		if( (now - out) > sleep_time )
 		{					
 			//printf("S ... \n");
 			for(int j=0; j < nChars2Send; j++){
@@ -131,7 +123,6 @@ int main( int argc, char** argv)
 			}					
 			//printf("S2 ... \n");			
 			out = getTime();
-			lastTimeMsgSend = out;
 		}
 						
 		//Detect if this response is an echo
