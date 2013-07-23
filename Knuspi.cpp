@@ -27,16 +27,19 @@ int main( int argc, char** argv)
 	char portName[20];
 	int sleep_time;
 	int nChars2Send;
+	int arduinoTextLength;
+	int nTotalRead;
 	
-	if( argc < 4)
+	if( argc < 5)
 	{
 		//fprintf(stderr, "Missing Serial Port Number as Program argument!\n");
-		fprintf(stderr, "Usage %s PORT_ID TEST_STRING_LENGTH SLEEP_IN_MS\n", argv[0]);
+		fprintf(stderr, "Usage %s PORT_ID TEST_STRING_LENGTH SLEEP_IN_MS ARDUINO_TEXT_LENGTH\n", argv[0]);
 		exit(1);
 	} else {
 		portId = atoi( argv[1] );
 		nChars2Send = atoi( argv[2] );
 		sleep_time = atoi( argv[3] );
+		arduinoTextLength = atoi( argv[4] );
 		
 		if( nChars2Send >= MAX_BUFFER_SIZE )
 		{
@@ -69,7 +72,8 @@ int main( int argc, char** argv)
 	unsigned char b[MAX_BUFFER_SIZE];	
 	int bIdx;
 	int nBytes;
-	double lastTimeMsgSend;	
+	double lastTimeMsgSend;
+	unsigned char START_SYMBOL;
 	
 	LARGE_INTEGER li;
 	if(!QueryPerformanceFrequency(&li)){
@@ -90,16 +94,14 @@ int main( int argc, char** argv)
 	
 	bIdx = 0;
 	lastTimeMsgSend = getTime();
+	START_SYMBOL = '@';
 	while(1)
 	{
 				
 		Sleep( 1 );
 		nBytes = RS232_PollComport( portId, &(b[bIdx]), nChars2Send);		
 		bIdx += nBytes;
-		
-		//if( nBytes ){
-		//	printf("R %d , bIdx %d\n", nBytes, bIdx );
-		//}
+		nTotalRead += nBytes;
 				
 		//Periodically Send messages
 		now = getTime();
@@ -107,16 +109,17 @@ int main( int argc, char** argv)
 		{					
 			//printf("S ... \n");
 			for(int j=0; j < nChars2Send; j++){
-				RS232_SendByte( portId, '#'+j );
-			}								
+				RS232_SendByte( portId, START_SYMBOL+j );
+			}					
+			//printf("S2 ... \n");			
 			out = getTime();
 			lastTimeMsgSend = out;
 		}
 						
 		//Detect if this response is an echo
-		if( (b[0] == '#'+1) && ( bIdx >= nChars2Send ) )
-		{
-			//printf("Found a package ...\n");
+		if( (b[0] == START_SYMBOL+1) && ( bIdx >= nChars2Send ) )
+		{			
+			//printf("R ... \n");
 			in = getTime();
 			tCnter++;
 			tDiff[tCnter] =  in - out;
@@ -125,16 +128,16 @@ int main( int argc, char** argv)
 			memcpy( b, &(b[nChars2Send]), bIdx - nChars2Send );
 			bIdx -= nChars2Send;
 		} else if ( bIdx >= nChars2Send ) {
-			printf("Try to detect frame start ...");
+			//printf("Try to detect frame start ...");
 			int j;
 			for( j = 0; j < bIdx; j++ )
 			{
-				if( b[j] == ('#'+1) )
+				if( b[j] == (START_SYMBOL+1) )
 					break;
 			}
 			memcpy( b, &(b[j]), bIdx - j );
 			bIdx -= j;
-			printf("Shifted by %d\n", j);
+			//printf("Shifted by %d , bIdx %d\n", j, bIdx);
 		}
 		
 		if( tCnter >= (N-1) )
@@ -151,7 +154,10 @@ int main( int argc, char** argv)
 				}
 			}
 			double avgDiff =  (double) (totalTime / (double) N);
-			printf("RTT %g , N = %d , textLength %d , Sleep %d ms\n", avgDiff, N , nChars2Send, sleep_time);
+			printf("RTT %g , N = %d , Send %d, Sleep %d ms, Recv %d, Recv Total %d\n", avgDiff, N , nChars2Send, sleep_time, arduinoTextLength, nTotalRead);
+			nTotalRead = 0;
+			
+			RS232_SendByte( portId, arduinoTextLength );
 		}					
 	}
 	exit(0);

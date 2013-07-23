@@ -471,7 +471,7 @@ int RS232_OpenComport(int comport_number, int baudrate)
     CloseHandle(Cport[comport_number]);
     return(1);
   }
-
+  
   COMMTIMEOUTS Cptimeouts;
 
   Cptimeouts.ReadIntervalTimeout         = MAXDWORD;
@@ -510,6 +510,10 @@ int RS232_SendByte(int comport_number, unsigned char byte)
 {
   int n;
 
+  //DWORD error;
+  //COMSTAT comstat;
+  //ClearCommError(Cport[comport_number],&error,NULL);
+  //fprintf(stdout, "error %d\n", error);
   WriteFile(Cport[comport_number], &byte, 1, (LPDWORD)((void *)&n), NULL);
   //FlushFileBuffers( Cport[comport_number] );
 
